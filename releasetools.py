@@ -47,14 +47,6 @@ def GetRadioFiles(z):
       out[fn] = fn
   return out
 
-def FullOTA_Assertions(info):
-  AddTrustZoneAssertion(info)
-  return
-
-def IncrementalOTA_Assertions(info):
-  AddTrustZoneAssertion(info)
-  return
-
 def InstallRawImage(image_data, api_version, input_zip, fn, info, filesmap):
   #fn is in RADIO/* format. Extracting just file name.
   filename = fn[6:]
@@ -107,17 +99,3 @@ def FullOTA_InstallEnd(info):
 
 def IncrementalOTA_InstallEnd(info):
   InstallRadioFiles(info)
-
-def AddTrustZoneAssertion(info):
-  # Presence of filesmap indicates packaged firmware
-  filesmap = LoadFilesMap(info.input_zip)
-  if filesmap != {}:
-    return
-  android_info = info.input_zip.read("OTA/android-info.txt")
-  m = re.search(r'require\s+version-trustzone\s*=\s*(\S+)', android_info)
-  if m:
-    versions = m.group(1).split('|')
-    if len(versions) and '*' not in versions:
-      cmd = 'assert(cm.verify_trustzone(' + ','.join(['"%s"' % tz for tz in versions]) + ') == "1");'
-      info.script.AppendExtra(cmd)
-  return

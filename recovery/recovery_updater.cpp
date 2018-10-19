@@ -36,8 +36,6 @@
 
 #define ALPHABET_LEN 256
 
-#define TZ_PART_PATH "/dev/block/platform/7824900.sdhci/by-name/tz"
-#endif
 #define TZ_VER_STR "QC_IMAGE_VERSION_STRING="
 #define TZ_VER_STR_LEN 24
 #define TZ_VER_BUF_LEN 255
@@ -120,74 +118,4 @@ static char * bm_search(const char *str, size_t str_len, const char *pat,
     return NULL;
 }
 
-static int get_tz_version(char *ver_str, size_t len) {
-    int ret = 0;
-    int fd;
-    int tz_size;
-    char *tz_data = NULL;
-    char *offset = NULL;
-
-    fd = open(TZ_PART_PATH, O_RDONLY);
-    if (fd < 0) {
-        ret = errno;
-        goto err_ret;
-    }
-
-    tz_size = lseek64(fd, 0, SEEK_END);
-    if (tz_size == -1) {
-        ret = errno;
-        goto err_fd_close;
-    }
-
-    tz_data = (char *) mmap(NULL, tz_size, PROT_READ, MAP_PRIVATE, fd, 0);
-    if (tz_data == (char *)-1) {
-        ret = errno;
-        goto err_fd_close;
-    }
-
-    /* Do Boyer-Moore search across TZ data */
-    offset = bm_search(tz_data, tz_size, TZ_VER_STR, TZ_VER_STR_LEN);
-    if (offset != NULL) {
-        strncpy(ver_str, offset + TZ_VER_STR_LEN, len);
-    } else {
-        ret = -ENOENT;
-    }
-
-    munmap(tz_data, tz_size);
-err_fd_close:
-    close(fd);
-err_ret:
-    return ret;
-}
-
-/* verify_trustzone("TZ_VERSION", "TZ_VERSION", ...) */
-Value * VerifyTrustZoneFn(const char *name, State *state,
-                     const std::vector<std::unique_ptr<Expr>>& argv) {
-    char current_tz_version[TZ_VER_BUF_LEN];
-    int ret;
-
-    ret = get_tz_version(current_tz_version, TZ_VER_BUF_LEN);
-    if (ret) {
-        return ErrorAbort(state, kFreadFailure, "%s() failed to read current TZ version: %d",
-                name, ret);
-    }
-
-    std::vector<std::string> args;
-    if (!ReadArgs(state, argv, &args)) {
-        return ErrorAbort(state, kArgsParsingFailure, "%s() error parsing arguments", name);
-    }
-
-    ret = 0;
-    for (auto& tz_version : args) {
-        if (strncmp(tz_version.c_str(), current_tz_version, strlen(tz_version.c_str())) == 0) {
-            ret = 1;
-            break;
-        }
-    }
-
-    return StringValue(strdup(ret ? "1" : "0"));
-}
-
-void Register_librecovery_updater_cm() {
-    RegisterFunction("cm.verify_trustzone", VerifyTrustZoneFn);
-}
+void Register_librecovery_updater_cm() {}
